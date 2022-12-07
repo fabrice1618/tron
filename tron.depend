@@ -1,0 +1,9 @@
+# depslib dependency file v1.0
+1670379613 source:c:\code\sdl_sample\tron\main.cpp
+	<exception>
+	<string>
+	<iostream>
+	<SDL2/SDL.h>
+	<stdlib.h>
+	<ctime>
+
