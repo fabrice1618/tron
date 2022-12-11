@@ -1,9 +1,21 @@
 # depslib dependency file v1.0
-1670379613 source:c:\code\sdl_sample\tron\main.cpp
-	<exception>
-	<string>
+1670734318 source:c:\code\sdl_sample\tron\main.cpp
 	<iostream>
+	"InitError.h"
+	"Fenetre.h"
+
+1670619971 source:c:\code\sdl_sample\tron\src\initerror.cpp
 	<SDL2/SDL.h>
-	<stdlib.h>
-	<ctime>
+	"InitError.h"
+
+1670619922 c:\code\sdl_sample\tron\include\initerror.h
+	<string>
+
+1670733085 c:\code\sdl_sample\tron\include\fenetre.h
+	<SDL2/SDL.h>
+	<sys/time.h>
+	"InitError.h"
+
+1670733076 source:c:\code\sdl_sample\tron\src\fenetre.cpp
+	"Fenetre.h"
 

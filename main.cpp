@@ -1,15 +1,17 @@
-#include <exception>
-#include <string>
 #include <iostream>
-#include <SDL2/SDL.h>
-#include <stdlib.h>
-#include <ctime>
 
-#define GRID_X 100
-#define GRID_Y 50
+#include "InitError.h"
+#include "Fenetre.h"
+
+#define GRID_X 200
+#define GRID_Y 100
 
 #define CELL_ZONE 5
-#define CELL_SIZE 4
+#define CELL_SIZE 5
+
+#define CLEAR_COLOR_R 0
+#define CLEAR_COLOR_G 0
+#define CLEAR_COLOR_B 0
 
 #define BIKE1_COLOR_R 255
 #define BIKE1_COLOR_G 192
@@ -19,164 +21,143 @@
 #define BIKE2_COLOR_G 14
 #define BIKE2_COLOR_B 252
 
+#define MUR_COLOR_R 255
+#define MUR_COLOR_G 0
+#define MUR_COLOR_B 255
+
+// Direction dans laquelle peut aller un bike
+enum bike_direction {
+    HAUT,
+    DROITE,
+    BAS,
+    GAUCHE
+};
+
+// Evenements en provenance du clavier
+enum evenement {
+    EVENT_QUIT = 1,
+    EVENT_BIKE1_HAUT,
+    EVENT_BIKE1_DROITE,
+    EVENT_BIKE1_BAS,
+    EVENT_BIKE1_GAUCHE,
+    EVENT_BIKE2_HAUT,
+    EVENT_BIKE2_DROITE,
+    EVENT_BIKE2_BAS,
+    EVENT_BIKE2_GAUCHE
+};
+
+// Un bike (position et direction)
 struct Bike {
     int pos_x;
     int pos_y;
-    int dir_x;
-    int dir_y;
+    enum bike_direction direction;
 };
 
+// Les états du jeu
 enum game_state {
 	GAME_LOOP,
-	GAME_END1,
-	GAME_END2,
+	GAME_VICTOIRE1,
+	GAME_VICTOIRE2,
+	GAME_END,
 	GAME_QUIT,
 };
 
 // Variables globales
-char tron_grid[GRID_Y][GRID_X];
-struct Bike bike1;
+Fenetre fenetre;        // La fenetre permettant l'affichage
+
+char tron_grid[GRID_Y][GRID_X];     // La grille du jeu
+struct Bike bike1;                  // Bike1 et bike2
 struct Bike bike2;
 
-/*
-Exception : InitError
-*/
-class InitError : public std::exception
-{
-    std::string msg;
-public:
-    InitError();
-    InitError( const std::string & );
-    virtual ~InitError() throw();
-    virtual const char * what() const throw();
-};
+void configure_fenetre();
 
-InitError::InitError() :
-    exception(),
-    msg( SDL_GetError() )
+// Recuperer composante X de la direction
+int get_dir_x(enum bike_direction direction)
 {
+    if (direction == HAUT || direction == BAS)
+        return 0;
+
+    if (direction == DROITE)
+        return 1;
+
+    if (direction == GAUCHE)
+        return -1;
+
+    return 0;
 }
 
-InitError::InitError( const std::string & m ) :
-    exception(),
-    msg( m )
+// Recuperer composante Y de la direction
+int get_dir_y(enum bike_direction direction)
 {
+    if (direction == HAUT)
+        return -1;
+
+    if (direction == BAS)
+        return 1;
+
+    if (direction == DROITE || direction == GAUCHE)
+        return 0;
+
+    return 0;
 }
 
-InitError::~InitError() throw()
+// Changement de la direction. Les demi-tours sont interdits
+enum bike_direction change_direction(enum bike_direction direction_initiale, enum bike_direction changement)
 {
+    // Changements de direction non autorisés, les déplacements à 180 degrés
+    if ( (direction_initiale == HAUT && changement == BAS) ||
+         (direction_initiale == BAS && changement == HAUT) ||
+         (direction_initiale == DROITE && changement == GAUCHE) ||
+         (direction_initiale == GAUCHE && changement == DROITE) )
+
+        return direction_initiale;
+
+    // modification de direction autorisée
+    return changement;
 }
 
-const char * InitError::what() const throw()
+// Dessiner une cellule avec sa couleur
+void draw_cell(int grid_x, int grid_y, int color)
 {
-    return msg.c_str();
-}
-
-/*
-Classe gérant l'affichage
-*/
-
-class SDL
-{
-    SDL_Window * m_window;
-    SDL_Renderer * m_renderer;
-public:
-    SDL( Uint32 flags = 0 );
-    virtual ~SDL();
-    void draw();
-};
-
-
-SDL::SDL( Uint32 flags )
-{
-    int screen_w = GRID_X * CELL_ZONE;
-    int screen_h = GRID_Y * CELL_ZONE;
-
-    if ( SDL_Init( flags ) != 0 )
-        throw InitError();
-
-    if ( SDL_CreateWindowAndRenderer( screen_w, screen_h, SDL_WINDOW_SHOWN,
-                                      &m_window, &m_renderer ) != 0 )
-        throw InitError();
-}
-
-SDL::~SDL()
-{
-    SDL_DestroyWindow( m_window );
-    SDL_DestroyRenderer( m_renderer );
-    SDL_Quit();
-}
-
-void SDL::draw()
-{
-    SDL_Rect cell;
     int cell_gap = (CELL_ZONE - CELL_SIZE) / 2;
+    int cell_x = ( grid_x * CELL_ZONE ) + cell_gap;
+    int cell_y = ( grid_y * CELL_ZONE ) + cell_gap;
 
-    cell.w = CELL_SIZE;
-    cell.h = CELL_SIZE;
-
-    // Clear the window with a black background
-    SDL_SetRenderDrawColor( m_renderer, 0, 0, 0, 255 );
-    SDL_RenderClear( m_renderer );
-
-    // Show the window
-    SDL_RenderPresent( m_renderer );
-
-    // Dessiner la grille
-    for ( int y = 0; y < GRID_Y; y++ ) {
-        for ( int x = 0; x < GRID_X; x++ ) {
-
-            if (tron_grid[y][x] == 1) {
-                // Couleur des cellules
-                SDL_SetRenderDrawColor( m_renderer, BIKE1_COLOR_R, BIKE1_COLOR_G, BIKE1_COLOR_B, 255 );
-
-                cell.x = ( x * CELL_ZONE ) + cell_gap;
-                cell.y = ( y * CELL_ZONE ) + cell_gap;
-
-                SDL_RenderFillRect( m_renderer, &cell );
-            }
-
-            if (tron_grid[y][x] == 2) {
-                // Couleur des cellules
-                SDL_SetRenderDrawColor( m_renderer, BIKE2_COLOR_R, BIKE2_COLOR_G, BIKE2_COLOR_B, 255 );
-
-                cell.x = ( x * CELL_ZONE ) + cell_gap;
-                cell.y = ( y * CELL_ZONE ) + cell_gap;
-
-                SDL_RenderFillRect( m_renderer, &cell );
-            }
-        }
-    }
-
-    SDL_RenderPresent( m_renderer );
+    fenetre.rectangle(cell_x, cell_y, CELL_SIZE, CELL_SIZE, color);
 }
 
+// Calcul prochain état du jeu
 enum game_state next_state()
 {
 
-    bike1.pos_x += bike1.dir_x;
-    bike1.pos_y += bike1.dir_y;
+    // Deplacer bike1
+    bike1.pos_x += get_dir_x(bike1.direction);
+    bike1.pos_y += get_dir_y(bike1.direction);
 
-    if ( (bike1.pos_x < 0 || bike1.pos_x > GRID_X) ||
-    (bike1.pos_y < 0 || bike1.pos_y > GRID_Y) ) {
-        return GAME_END1;
+    if ( tron_grid[bike1.pos_y][bike1.pos_x] != 0 ) {
+        return GAME_VICTOIRE2;
+    } else {
+        tron_grid[bike1.pos_y][bike1.pos_x] = 1;
+        draw_cell(bike1.pos_x, bike1.pos_y, 1);
     }
 
-    bike2.pos_x += bike2.dir_x;
-    bike2.pos_y += bike2.dir_y;
+    // Deplacer bike2
+    bike2.pos_x += get_dir_x(bike2.direction);
+    bike2.pos_y += get_dir_y(bike2.direction);
 
-    if ( (bike2.pos_x < 0 || bike2.pos_x > GRID_X) ||
-    (bike2.pos_y < 0 || bike2.pos_y > GRID_Y) ) {
-        return GAME_END2;
+    if ( tron_grid[bike2.pos_y][bike2.pos_x] != 0 ) {
+        return GAME_VICTOIRE1;
+    } else {
+        tron_grid[bike2.pos_y][bike2.pos_x] = 2;
+        draw_cell(bike2.pos_x, bike2.pos_y, 2);
     }
 
-    tron_grid[bike1.pos_y][bike1.pos_x] = 1;
-    tron_grid[bike2.pos_y][bike2.pos_x] = 2;
+    fenetre.render();   // mise à jour affichage
 
     return GAME_LOOP;
 }
 
-
+// Initialiser la grille avec des zéros
 void init_grid()
 {
     for (int y=0; y < GRID_Y; y++) {
@@ -186,90 +167,146 @@ void init_grid()
     }
 }
 
+// Dessine le mur autour du jeu
+void dessine_mur()
+{
+    for (int y=0; y < GRID_Y; y++) {
+        tron_grid[y][0] = 3;
+        tron_grid[y][GRID_X-1] = 3;
 
+        draw_cell(0, y, 3);
+        draw_cell(GRID_X-1, y, 3);
+    }
 
+    for (int x=0; x < GRID_X; x++) {
+        tron_grid[0][x] = 3;
+        tron_grid[GRID_Y-1][x] = 3;
+
+        draw_cell(x, 0, 3);
+        draw_cell(x, GRID_Y-1, 3);
+    }
+
+    fenetre.render();
+}
+
+// Programme principal
 int main( int argc, char * argv[] )
 {
-    SDL_Event evenements;
     enum game_state state = GAME_LOOP;
+    int evenement;
 
-    try
-    {
-        SDL sdl( SDL_INIT_VIDEO | SDL_INIT_TIMER );
-        init_grid();
+    configure_fenetre();
+    init_grid();    // Remplir la grille à 0 et 3 pour les murs.
+    dessine_mur();  // dessiner et 3 pour les murs.
 
-        bike1.pos_x = 0;
-        bike1.pos_y = GRID_Y / 2;
-        bike1.dir_x = 1;
-        bike1.dir_y = 0;
+    // Bike1 initialisation
+    bike1.pos_x = 1;
+    bike1.pos_y = GRID_Y / 2;
+    bike1.direction = DROITE;
 
+    // Bike2 initialisation
+    bike2.pos_x = GRID_X - 1;
+    bike2.pos_y = GRID_Y / 2;
+    bike2.direction = GAUCHE;
 
-        bike2.pos_x = GRID_X;
-        bike2.pos_y = GRID_Y / 2;
-        bike2.dir_x = -1;
-        bike2.dir_y = 0;
+    while (state == GAME_LOOP) {
 
-        while (state != GAME_QUIT) {
-        	// Fermeture de la fenetre
-            while ( (state != GAME_QUIT) && SDL_PollEvent(&evenements) ) {
-                if ((evenements.type==SDL_WINDOWEVENT) && (evenements.window.event == SDL_WINDOWEVENT_CLOSE))
+        // Verification si utilisateur clique sur la "croix"
+        if ( fenetre.close_event() )
+            state = GAME_QUIT;
+
+        // Lire le clavier et transformer en evenements
+        fenetre.read_keyboard_event();
+
+        while ( (evenement = fenetre.get_event()) != NO_EVENT) {
+
+            switch (evenement) {
+                // ESC fermeture fenetre
+                case EVENT_QUIT:
                     state = GAME_QUIT;
-            }
+                    break;
 
-            // Traiter les événements clavier
-            const Uint8 *keystate = SDL_GetKeyboardState(NULL);
+                // Mouvements de bike1
+                case EVENT_BIKE1_HAUT:
+                    bike1.direction = change_direction(bike1.direction, HAUT);
+                    break;
+                case EVENT_BIKE1_DROITE:
+                    bike1.direction = change_direction(bike1.direction, DROITE);
+                    break;
+                case EVENT_BIKE1_BAS:
+                    bike1.direction = change_direction(bike1.direction, BAS);
+                    break;
+                case EVENT_BIKE1_GAUCHE:
+                    bike1.direction = change_direction(bike1.direction, GAUCHE);
+                    break;
 
-            if (keystate[SDL_SCANCODE_ESCAPE]) {
-//                std::cout << "ESC" << std::endl;
-                state = GAME_QUIT;
-            }
+                // Mouvements de bike2
+                case EVENT_BIKE2_HAUT:
+                    bike2.direction = change_direction(bike2.direction, HAUT);
+                    break;
+                case EVENT_BIKE2_DROITE:
+                    bike2.direction = change_direction(bike2.direction, DROITE);
+                    break;
+                case EVENT_BIKE2_BAS:
+                    bike2.direction = change_direction(bike2.direction, BAS);
+                    break;
+                case EVENT_BIKE2_GAUCHE:
+                    bike2.direction = change_direction(bike2.direction, GAUCHE);
+                    break;
 
-            if (keystate[SDL_SCANCODE_DOWN]) {
-//                std::cout << "DOWN" << std::endl;
-                bike2.dir_y = 1;
+                // evenement non reconnu
+                default:
+                    break;
             }
-            if (keystate[SDL_SCANCODE_UP]) {
-//                std::cout << "UP" << std::endl;
-                bike2.dir_y = -1;
-            }
-
-            if (keystate[SDL_SCANCODE_RIGHT]) {
-                bike2.dir_x = 1;
-            }
-            if (keystate[SDL_SCANCODE_LEFT]) {
-                bike2.dir_x = -1;
-            }
-
-
-            if (keystate[SDL_SCANCODE_A]) {
-                bike1.dir_y = 1;
-            }
-            if (keystate[SDL_SCANCODE_Q]) {
-                bike1.dir_y = -1;
-            }
-            if (keystate[SDL_SCANCODE_D]) {
-                bike1.dir_x = 1;
-            }
-            if (keystate[SDL_SCANCODE_S]) {
-                bike1.dir_x = -1;
-            }
-
-            if (state != GAME_QUIT) {
-                sdl.draw();
-                state = next_state();
-                SDL_Delay( 100 );
-            }
-
         }
 
-        return EXIT_SUCCESS;
+        // Si le delai de 100 ms est écoulé, prochain état du jeu
+        if (state != GAME_QUIT && fenetre.refresh_tick() ) {
+            state = next_state();
+        }
+
+    }
+
+    return EXIT_SUCCESS;
+
+}
+
+// Configuration de l'affichage
+void configure_fenetre()
+{
+    try {
+        // Initalise la fenetre
+        fenetre.set_size(GRID_X * CELL_ZONE, GRID_Y * CELL_ZONE);
+        fenetre.initialise();
+
+        // Crée les couleurs de la palette
+        fenetre.add_color(CLEAR_COLOR_R, CLEAR_COLOR_G, CLEAR_COLOR_B);     // 0 = Couleur pour effacer écran)
+        fenetre.add_color(BIKE1_COLOR_R, BIKE1_COLOR_G, BIKE1_COLOR_B);     // 1 = bike 1
+        fenetre.add_color(BIKE2_COLOR_R, BIKE2_COLOR_G, BIKE2_COLOR_B);     // 2 = Bike 2
+        fenetre.add_color(MUR_COLOR_R, MUR_COLOR_G, MUR_COLOR_B);     // 3 = Couleur du mur
+
+        // Création des associations touche clavier -> événement
+        // Escape -> fin application
+        fenetre.add_keymap_event(SDL_SCANCODE_ESCAPE, EVENT_QUIT);
+        // Mouvements bike1
+        fenetre.add_keymap_event(SDL_SCANCODE_UP,       EVENT_BIKE1_HAUT);
+        fenetre.add_keymap_event(SDL_SCANCODE_RIGHT,    EVENT_BIKE1_DROITE);
+        fenetre.add_keymap_event(SDL_SCANCODE_DOWN,     EVENT_BIKE1_BAS);
+        fenetre.add_keymap_event(SDL_SCANCODE_LEFT,     EVENT_BIKE1_GAUCHE);
+        // Mouvements bike2
+        fenetre.add_keymap_event(SDL_SCANCODE_A,    EVENT_BIKE2_HAUT);
+        fenetre.add_keymap_event(SDL_SCANCODE_D,    EVENT_BIKE2_DROITE);
+        fenetre.add_keymap_event(SDL_SCANCODE_Q,    EVENT_BIKE2_BAS);
+        fenetre.add_keymap_event(SDL_SCANCODE_S,    EVENT_BIKE2_GAUCHE);
+
     }
     catch ( const InitError & err )
     {
         std::cerr << "Error while initializing SDL:  "
                   << err.what()
                   << std::endl;
+
+        exit( EXIT_FAILURE );
     }
 
-    return EXIT_FAILURE;
 }
